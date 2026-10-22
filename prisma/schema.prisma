@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  passwordHash      String             @map("password_hash")
+  name              String
+  role              Role               @default(CLIENT)
+  specialistProfile SpecialistProfile?
+  bookings          Booking[]          @relation("ClientBookings")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("users")
+}
+
+model SpecialistProfile {
+  id           String              @id @default(cuid())
+  userId       String              @unique @map("user_id")
+  isActive     Boolean             @default(true) @map("is_active")
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  services     SpecialistService[]
+  workingHours WorkingHours[]
+  bookings     Booking[]
+
+  @@map("specialist_profiles")
+}
+
+model ServiceOffering {
+  id          String              @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal             @db.Decimal(10, 2)
+  durationMin Int                 @map("duration_min")
+  isActive    Boolean             @default(true) @map("is_active")
+  specialists SpecialistService[]
+  bookings    Booking[]
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("services")
+}
+
+model SpecialistService {
+  specialistId String            @map("specialist_id")
+  serviceId    String            @map("service_id")
+  specialist   SpecialistProfile @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+  service      ServiceOffering   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([specialistId, serviceId])
+  @@map("specialist_services")
+}
+
+model WorkingHours {
+  id           String            @id @default(cuid())
+  specialistId String            @map("specialist_id")
+  dayOfWeek    Int               @map("day_of_week")
+  startMinute  Int               @map("start_minute")
+  endMinute    Int               @map("end_minute")
+  specialist   SpecialistProfile @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+
+  @@unique([specialistId, dayOfWeek])
+  @@map("working_hours")
+}
+
+model Booking {
+  id           String            @id @default(cuid())
+  clientId     String            @map("client_id")
+  specialistId String            @map("specialist_id")
+  serviceId    String            @map("service_id")
+  startAt      DateTime          @map("start_at") @db.Timestamptz(3)
+  endAt        DateTime          @map("end_at") @db.Timestamptz(3)
+  status       BookingStatus     @default(CONFIRMED)
+  client       User              @relation("ClientBookings", fields: [clientId], references: [id], onDelete: Restrict)
+  specialist   SpecialistProfile @relation(fields: [specialistId], references: [id], onDelete: Restrict)
+  service      ServiceOffering   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([clientId, startAt])
+  @@index([specialistId, startAt])
+  @@map("bookings")
+}
+
+enum Role {
+  CLIENT
+  SPECIALIST
+  ADMIN
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
